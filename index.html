@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SignBridge — Real-Time ASL Translator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/framer-motion@10/dist/framer-motion.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: #0a0a0f;
+  color: #e8e6f0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+:root {
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --bg: #0a0a0f;
+  --bg-alt: #0d0d14;
+  --card: #13121f;
+  --card2: #1a1928;
+  --text: #e8e6f0;
+  --muted: #7b7a8e;
+  --border: rgba(255,255,255,0.07);
+  --indigo: #6c63ff;
+  --coral: #ff6b6b;
+  --amber: #ffc94a;
+}
+@keyframes blob-breathe {
+  0%,100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.15); }
+}
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+@keyframes float {
+  0%,100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes ping {
+  75%,100% { transform: scale(2); opacity: 0; }
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #13121f; }
+::-webkit-scrollbar-thumb { background: #7b7a8e; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6c63ff; }
+::selection { background: rgba(108,99,255,0.3); color: #e8e6f0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { motion, AnimatePresence, useInView, useScroll, useTransform } = window.Motion || window["framer-motion"];
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ─── NAVBAR ───────────────────────────────────────────────────────────────────
+function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
+  const navLinks = [
+    { label: 'How It Works', href: '#how-it-works' },
+    { label: 'Demo', href: '#demo-section' },
+    { label: 'Gestures', href: '#gestures' },
+    { label: 'About', href: '#about' },
+  ];
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', fn);
+    return () => window.removeEventListener('scroll', fn);
+  }, []);
+
+  return (
+    <motion.header
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
+        background: scrolled ? 'rgba(10,10,15,0.95)' : 'rgba(10,10,15,0.8)',
+        backdropFilter: 'blur(24px)',
+        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.07)' : 'none',
+        transition: 'all 0.3s ease',
+      }}
+    >
+      <nav style={{ maxWidth: 1152, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <motion.a href="#" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+          style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: '#6c63ff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+          SignBridge ✋
+        </motion.a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }} className="nav-links-desktop">
+          {navLinks.map((link, i) => (
+            <motion.a key={link.href} href={link.href}
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.05 }} whileHover={{ y: -2 }}
+              style={{ fontSize: 14, color: '#7b7a8e', textDecoration: 'none', position: 'relative', transition: 'color 0.2s' }}
+              onMouseEnter={e => e.target.style.color = '#e8e6f0'}
+              onMouseLeave={e => e.target.style.color = '#7b7a8e'}
+            >
+              {link.label}
+            </motion.a>
+          ))}
+        </div>
+        <motion.a href="#demo-section"
+          initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }} whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(108,99,255,0.4)' }}
+          whileTap={{ scale: 0.95 }}
+          style={{ padding: '10px 20px', fontSize: 14, fontWeight: 500, borderRadius: 999, border: '1px solid #6c63ff', color: '#6c63ff', textDecoration: 'none', transition: 'all 0.3s' }}
+          onMouseEnter={e => { e.target.style.background = '#6c63ff'; e.target.style.color = '#0a0a0f'; }}
+          onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = '#6c63ff'; }}
+        >
+          Try Live Demo
+        </motion.a>
+      </nav>
+    </motion.header>
+  );
+}
+
+// ─── ANIMATED BLOB ────────────────────────────────────────────────────────────
+function AnimatedBlob({ color, size, initialX, initialY, delay }) {
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setPos({
+        x: Math.sin(Date.now() / 3000 + delay) * 50,
+        y: Math.cos(Date.now() / 2500 + delay) * 40,
+      });
+    }, 50);
+    return () => clearInterval(iv);
+  }, [delay]);
+  return (
+    <div style={{
+      position: 'absolute', borderRadius: '50%', filter: 'blur(100px)', opacity: 0.4,
+      width: size, height: size, background: color, left: initialX, top: initialY,
+      transform: `translate(${pos.x}px, ${pos.y}px)`,
+      animation: `blob-breathe 8s ease-in-out ${delay}s infinite`,
+    }} />
+  );
+}
+
+// ─── HERO ─────────────────────────────────────────────────────────────────────
+function Hero({ onStartSigning }) {
+  const container = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.3 } },
+  };
+  const item = {
+    hidden: { opacity: 0, y: 40 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } },
+  };
+  const slide = {
+    hidden: { opacity: 0, y: 60 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] } },
+  };
+
+  return (
+    <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#0a0a0f' }}>
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+        <AnimatedBlob color="#6c63ff" size={600} initialX="-10%" initialY="10%" delay={0} />
+        <AnimatedBlob color="#ff6b6b" size={500} initialX="60%" initialY="20%" delay={1} />
+        <AnimatedBlob color="#ffc94a" size={450} initialX="30%" initialY="60%" delay={2} />
+      </div>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,10,15,0.5), transparent, #0a0a0f)' }} />
+
+      <motion.div variants={container} initial="hidden" animate="visible"
+        style={{ position: 'relative', zIndex: 10, maxWidth: 960, margin: '0 auto', padding: '96px 24px 0', textAlign: 'center' }}>
+        <div style={{ marginBottom: 32 }}>
+          <motion.h1 variants={item}
+            style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(48px, 10vw, 96px)', fontWeight: 400, letterSpacing: '-0.02em', color: '#e8e6f0', lineHeight: 1.05, marginBottom: 8 }}>
+            Sign Language,
+          </motion.h1>
+          <motion.h1 variants={slide}
+            style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(48px, 10vw, 96px)', fontWeight: 700, fontStyle: 'italic', letterSpacing: '-0.02em', lineHeight: 1.05, background: 'linear-gradient(135deg, #6c63ff, #ff6b6b, #ffc94a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+            Understood.
+          </motion.h1>
+        </div>
+
+        <motion.p variants={item}
+          style={{ fontSize: 'clamp(16px, 2.5vw, 22px)', color: '#7b7a8e', maxWidth: 600, margin: '0 auto 48px', fontWeight: 300, lineHeight: 1.6 }}>
+          Real-time ASL gesture recognition, powered by MediaPipe + CNN.
+        </motion.p>
+
+        <motion.div variants={item} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 48 }}>
+          <motion.button onClick={onStartSigning}
+            whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(108,99,255,0.5)' }} whileTap={{ scale: 0.95 }}
+            style={{ padding: '16px 32px', background: '#6c63ff', color: '#0a0a0f', fontWeight: 600, borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+            Start Signing
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+          </motion.button>
+          <motion.button onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
+            whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(255,107,107,0.4)' }} whileTap={{ scale: 0.95 }}
+            style={{ padding: '16px 32px', background: 'transparent', color: '#ff6b6b', fontWeight: 600, borderRadius: 999, border: '2px solid #ff6b6b', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            Watch Demo
+          </motion.button>
+        </motion.div>
+
+        <motion.div variants={item}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 12, padding: '12px 24px', borderRadius: 999, background: '#13121f', border: '1px solid rgba(255,255,255,0.07)', animation: 'float 3s ease-in-out infinite' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6c63ff', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+            <span style={{ fontSize: 13, color: '#7b7a8e' }}>6 Gestures</span>
+          </span>
+          <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)' }} />
+          <span style={{ fontSize: 13, color: '#7b7a8e' }}>Real-time</span>
+          <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)' }} />
+          <span style={{ fontSize: 13, color: '#ffc94a' }}>AI Powered</span>
+        </motion.div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.5, duration: 0.6 }}
+        style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)' }}>
+        <motion.div animate={{ y: [0, 5, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
+          style={{ width: 24, height: 40, borderRadius: 12, border: '2px solid #7b7a8e', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 8 }}>
+          <motion.div animate={{ y: [0, 8, 0], opacity: [1, 0.5, 1] }} transition={{ duration: 1.5, repeat: Infinity }}
+            style={{ width: 4, height: 8, background: '#6c63ff', borderRadius: 2 }} />
+        </motion.div>
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── HOW IT WORKS ─────────────────────────────────────────────────────────────
+function HowItWorks() {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const steps = [
+    { number: '01', title: 'Enable Camera', description: 'Allow webcam access in one click. Your feed stays local — nothing is uploaded.', icon: '📸', color: '#6c63ff' },
+    { number: '02', title: 'Sign a Gesture', description: 'Hold up A, B, C, L, Y, or W. MediaPipe maps 21 hand landmarks in real-time.', icon: '🤟', color: '#ff6b6b' },
+    { number: '03', title: 'Get Text', description: 'See the detected letter appear instantly. Copy, speak, or save the transcript.', icon: '✨', color: '#ffc94a' },
+  ];
+  const container = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.15 } } };
+  const card = { hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } } };
+
+  return (
+    <section id="how-it-works" style={{ position: 'relative', padding: '128px 24px', background: '#0d0d14' }}>
+      <div style={{ maxWidth: 1152, margin: '0 auto' }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          style={{ marginBottom: 64, textAlign: 'center' }}>
+          <p style={{ marginBottom: 16, fontSize: 11, fontWeight: 600, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#6c63ff' }}>The Process</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 400, color: '#e8e6f0', letterSpacing: '-0.02em' }}>How It Works</h2>
+        </motion.div>
+        <motion.div ref={ref} variants={container} initial="hidden" animate={isInView ? 'visible' : 'hidden'}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
+          {steps.map(step => (
+            <motion.div key={step.number} variants={card}
+              whileHover={{ y: -8, boxShadow: `0 20px 40px -20px ${step.color}40`, transition: { duration: 0.3 } }}
+              style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', background: '#13121f', padding: 32, cursor: 'default' }}>
+              <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontSize: 64, fontWeight: 700, color: step.color, opacity: 0.18, marginBottom: 24 }}>{step.number}</span>
+              <span style={{ position: 'absolute', top: 24, right: 24, fontSize: 28 }}>{step.icon}</span>
+              <h3 style={{ marginBottom: 12, fontSize: 17, fontWeight: 600, color: '#e8e6f0' }}>{step.title}</h3>
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: '#7b7a8e' }}>{step.description}</p>
+              <div style={{ position: 'absolute', bottom: 0, left: 0, height: 3, width: '100%', background: step.color, opacity: 0.6 }} />
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ─── CAMERA CARD ──────────────────────────────────────────────────────────────
+function CameraCard({ cameraActive, cameraPaused, currentGesture, confidence, onStartCamera, onPauseCamera, onResumeCamera, onStopCamera, videoRef }) {
+  const gestures = [
+    { emoji: '✊', name: 'A', color: '#6c63ff' }, { emoji: '🖐', name: 'B', color: '#ff6b6b' },
+    { emoji: '🤏', name: 'C', color: '#ffc94a' }, { emoji: '👆', name: 'L', color: '#6c63ff' },
+    { emoji: '🤙', name: 'Y', color: '#ff6b6b' }, { emoji: '🖖', name: 'W', color: '#ffc94a' },
+  ];
+  const statusColor = !cameraActive ? '#7b7a8e' : cameraPaused ? '#ffc94a' : '#ff6b6b';
+  const statusText = !cameraActive ? 'No camera' : cameraPaused ? 'PAUSED' : '● LIVE';
+  const ctrlBtn = (disabled, color, title, icon, onClick) => (
+    <button onClick={onClick} disabled={disabled} title={title}
+      style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)', background: '#1a1928', color: disabled ? '#3a3950' : '#7b7a8e', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+      onMouseEnter={e => { if (!disabled) { e.target.style.borderColor = color; e.target.style.color = color; e.target.style.background = color + '18'; } }}
+      onMouseLeave={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)'; e.target.style.color = disabled ? '#3a3950' : '#7b7a8e'; e.target.style.background = '#1a1928'; }}>
+      {icon}
+    </button>
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      style={{ overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', background: '#13121f', boxShadow: '0 24px 48px rgba(0,0,0,0.4)' }}>
+      <div style={{ height: 2, background: 'linear-gradient(90deg, #6c63ff, #ff6b6b, #ffc94a)' }} />
+
+      <div style={{ position: 'relative', aspectRatio: '4/3', width: '100%', overflow: 'hidden', background: '#0a0a0f' }}>
+        <video ref={videoRef} autoPlay playsInline muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', display: cameraActive ? 'block' : 'none' }} />
+
+        {!cameraActive && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#0a0a0f' }}>
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(108,99,255,0.4)', animation: 'ping 2s infinite' }} />
+              <span style={{ fontSize: 48 }}>🤟</span>
+            </div>
+            <p style={{ fontSize: 13, fontWeight: 500, color: '#6c63ff' }}>Ready to detect signs</p>
+            <button onClick={onStartCamera}
+              style={{ marginTop: 8, borderRadius: 999, background: '#6c63ff', padding: '12px 24px', fontSize: 13, fontWeight: 600, color: '#0a0a0f', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.target.style.transform = 'scale(1.05)'; e.target.style.boxShadow = '0 0 30px rgba(108,99,255,0.4)'; }}
+              onMouseLeave={e => { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = 'none'; }}>
+              Enable Camera
+            </button>
+          </div>
+        )}
+
+        <AnimatePresence>
+          {cameraPaused && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(10,10,15,0.8)', backdropFilter: 'blur(4px)' }}>
+              <span style={{ fontSize: 48 }}>⏸</span>
+              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#ffc94a' }}>Paused</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {cameraActive && !cameraPaused && (
+          <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(108,99,255,0.5)', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '10px 16px' }}>
+        {ctrlBtn(!cameraActive || !cameraPaused, '#6c63ff', 'Resume', '▶', onResumeCamera)}
+        {ctrlBtn(!cameraActive || cameraPaused, '#ffc94a', 'Pause', '⏸', onPauseCamera)}
+        <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.07)', margin: '0 4px' }} />
+        {ctrlBtn(!cameraActive, '#ff6b6b', 'Stop', '⏹', onStopCamera)}
+        <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: statusColor }}>{statusText}</span>
+      </div>
+
+      <div style={{ padding: '20px 24px' }}>
+        <motion.div key={currentGesture} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 700, background: 'linear-gradient(135deg, #6c63ff, #ff6b6b, #ffc94a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+          {currentGesture || 'Waiting...'}
+        </motion.div>
+        <p style={{ marginTop: 4, fontSize: 13, color: '#7b7a8e' }}>Current gesture</p>
+        <AnimatePresence>
+          {currentGesture && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, border: '1px solid rgba(108,99,255,0.25)', background: 'rgba(108,99,255,0.1)', padding: '4px 12px', fontSize: 12, color: '#6c63ff' }}>
+              ⚡ {Math.round(confidence * 100)}% confident
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', borderTop: '1px solid rgba(255,255,255,0.07)', padding: '14px 16px' }} className="scrollbar-hide">
+        {gestures.map(g => (
+          <motion.div key={g.name} whileHover={{ scale: 1.08 }}
+            style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 12, background: '#1a1928', padding: '8px 12px', minWidth: 52, borderBottom: `2px solid ${g.color}`, cursor: 'default' }}>
+            <span style={{ fontSize: 20 }}>{g.emoji}</span>
+            <span style={{ marginTop: 4, fontSize: 10, fontWeight: 600, color: '#7b7a8e' }}>{g.name}</span>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── CHAT CARD ────────────────────────────────────────────────────────────────
+function ChatCard({ messages, isLive, isPaused, onSpeak, onCopyAll, onClear }) {
+  const msgsRef = useRef(null);
+  useEffect(() => {
+    if (msgsRef.current) msgsRef.current.scrollTo({ top: msgsRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
+  const dotStyle = isLive && !isPaused
+    ? { background: '#ff6b6b', boxShadow: '0 0 8px #ff6b6b', animation: 'pulse 1.5s infinite' }
+    : isPaused ? { background: '#ffc94a', boxShadow: '0 0 8px #ffc94a' }
+    : { background: '#7b7a8e' };
+
+  const actionBtn = (label, hoverColor, onClick) => (
+    <button onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, border: '1px solid rgba(255,255,255,0.07)', background: '#1a1928', padding: '6px 12px', fontSize: 11, color: '#7b7a8e', cursor: 'pointer', transition: 'all 0.2s' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = hoverColor + '50'; e.currentTarget.style.background = hoverColor + '15'; e.currentTarget.style.color = '#e8e6f0'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.background = '#1a1928'; e.currentTarget.style.color = '#7b7a8e'; }}>
+      {label}
+    </button>
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+      style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', background: '#13121f', boxShadow: '0 24px 48px rgba(0,0,0,0.4)', height: '100%' }}>
+      <div style={{ height: 2, background: 'linear-gradient(90deg, #6c63ff, #ff6b6b, #ffc94a)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '16px 20px' }}>
+        <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#e8e6f0' }}>Live Transcript</h2>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', ...dotStyle }} />
+      </div>
+      <div ref={msgsRef} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 300, maxHeight: 420 }}>
+        <AnimatePresence mode="popLayout">
+          {messages.length === 0 ? (
+            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: '#7b7a8e', textAlign: 'center', padding: 40, minHeight: 200 }}>
+              <motion.span animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 3, repeat: Infinity }} style={{ fontSize: 40 }}>🤝</motion.span>
+              <p style={{ fontSize: 13, lineHeight: 1.6, maxWidth: 180 }}>Start signing to begin your conversation</p>
+            </motion.div>
+          ) : messages.map(msg => (
+            <motion.div key={msg.id}
+              initial={{ opacity: 0, y: 20, scale: 0.92 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+              <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', background: 'linear-gradient(135deg, #6c63ff, #ff6b6b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✋</div>
+              <div style={{ borderRadius: '16px 16px 16px 4px', border: '1px solid rgba(255,255,255,0.07)', background: '#1a1928', padding: '10px 14px' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: '#e8e6f0' }}>{msg.gesture}</div>
+                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
+                  <span style={{ color: '#ffc94a' }}>⚡ {Math.round(msg.confidence * 100)}% confident</span>
+                  <span style={{ color: '#7b7a8e' }}>{msg.time}</span>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+      <div style={{ display: 'flex', gap: 8, borderTop: '1px solid rgba(255,255,255,0.07)', padding: '12px 16px' }}>
+        {actionBtn('🔊 Speak', '#6c63ff', onSpeak)}
+        {actionBtn('📋 Copy All', '#6c63ff', onCopyAll)}
+        {actionBtn('🗑️ Clear', '#ff6b6b', onClear)}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── DEMO SECTION ─────────────────────────────────────────────────────────────
+function DemoSection({ autoStart }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const demoIndexRef = useRef(0);
+  const demoIntervalRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+  const messageIdRef = useRef(0);
+
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraPaused, setCameraPaused] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const [currentGesture, setCurrentGesture] = useState(null);
+  const [confidence, setConfidence] = useState(0);
+  const [messages, setMessages] = useState([]);
+  const [toast, setToast] = useState(null);
+
+  const demoGestures = [
+    { gesture: 'A', confidence: 0.92 }, { gesture: 'B', confidence: 0.95 },
+    { gesture: 'C', confidence: 0.88 }, { gesture: 'L', confidence: 0.94 },
+    { gesture: 'Y', confidence: 0.91 }, { gesture: 'W', confidence: 0.90 },
+  ];
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  const addMessage = useCallback((gesture, conf) => {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setMessages(prev => [...prev, { id: ++messageIdRef.current, gesture, confidence: conf, time }]);
+  }, []);
+
+  const onGestureDetected = useCallback((gesture, conf) => {
+    setCurrentGesture(gesture); setConfidence(conf); addMessage(gesture, conf);
+  }, [addMessage]);
+
+  const lastGestureRef = useRef(null);
+
+  const startPolling = useCallback(() => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    const canvas = document.createElement('canvas');
+    canvas.width = 200; canvas.height = 200;
+    const ctx = canvas.getContext('2d');
+    pollIntervalRef.current = setInterval(() => {
+      if (!videoRef.current || !videoRef.current.srcObject || videoRef.current.paused) return;
+      try {
+        ctx.drawImage(videoRef.current, 0, 0, 200, 200);
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+          const formData = new FormData();
+          formData.append('file', blob, 'frame.jpg');
+          try {
+            const res = await fetch('http://localhost:8000/predict', { method: 'POST', body: formData });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.gesture && data.gesture !== lastGestureRef.current) {
+              lastGestureRef.current = data.gesture;
+              onGestureDetected(data.gesture, data.confidence ?? 0.9);
+            } else if (!data.gesture) {
+              lastGestureRef.current = null;
+            }
+          } catch(e) {}
+        }, 'image/jpeg', 0.8);
+      } catch(e) {}
+    }, 1000);
+  }, [onGestureDetected]);
+
+  const handleStartCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => videoRef.current.play();
+      }
+      setCameraActive(true); setCameraPaused(false);
+      setTimeout(() => startPolling(), 1000);
+    } catch { showToast('⚠️ Camera access denied'); }
+  }, [showToast, startPolling]);
+
+  const handlePauseCamera = useCallback(() => {
+    if (!cameraActive || cameraPaused) return;
+    if (videoRef.current) videoRef.current.pause();
+    setCameraPaused(true);
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    showToast('⏸ Camera paused');
+  }, [cameraActive, cameraPaused, showToast]);
+
+  const handleResumeCamera = useCallback(() => {
+    if (!cameraActive || !cameraPaused) return;
+    if (videoRef.current) videoRef.current.play();
+    setCameraPaused(false);
+    showToast('▶ Camera resumed');
+  }, [cameraActive, cameraPaused, showToast]);
+
+  const handleStopCamera = useCallback(() => {
+    if (!cameraActive) return;
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false); setCameraPaused(false);
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    showToast('⏹ Camera stopped');
+  }, [cameraActive, showToast]);
+
+  const toggleDemoMode = useCallback(() => {
+    if (demoMode) {
+      if (demoIntervalRef.current) { clearInterval(demoIntervalRef.current); demoIntervalRef.current = null; }
+      setDemoMode(false); showToast('Demo stopped');
+    } else {
+      demoIndexRef.current = 0;
+      demoIntervalRef.current = setInterval(() => {
+        const g = demoGestures[demoIndexRef.current % demoGestures.length];
+        onGestureDetected(g.gesture, g.confidence);
+        demoIndexRef.current++;
+      }, 2000);
+      setDemoMode(true); showToast('✨ Demo started');
+    }
+  }, [demoMode, onGestureDetected, showToast]);
+
+  const handleSpeak = useCallback(() => {
+    if (!currentGesture) { showToast('No gesture detected yet'); return; }
+    speechSynthesis.speak(new SpeechSynthesisUtterance(currentGesture));
+    showToast(`🔊 Speaking: ${currentGesture}`);
+  }, [currentGesture, showToast]);
+
+  const handleCopyAll = useCallback(() => {
+    if (!messages.length) { showToast('Nothing to copy yet'); return; }
+    navigator.clipboard.writeText(messages.map(m => m.gesture).join(' '));
+    showToast('📋 Copied!');
+  }, [messages, showToast]);
+
+  const handleClear = useCallback(() => {
+    setMessages([]); setCurrentGesture(null); showToast('🗑️ Cleared');
+  }, [showToast]);
+
+  useEffect(() => () => {
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    if (demoIntervalRef.current) clearInterval(demoIntervalRef.current);
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (autoStart && !cameraActive) handleStartCamera();
+  }, [autoStart]);
+
+  return (
+    <section id="demo-section" style={{ position: 'relative', padding: '128px 24px', background: '#0d0d14' }} ref={ref}>
+      <div style={{ maxWidth: 1152, margin: '0 auto' }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          style={{ marginBottom: 48, textAlign: 'center' }}>
+          <p style={{ marginBottom: 16, fontSize: 11, fontWeight: 600, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#ffc94a' }}>Live Demo</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 400, color: '#e8e6f0', letterSpacing: '-0.02em', marginBottom: 24 }}>See It In Action</h2>
+          <motion.button onClick={toggleDemoMode} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 999, border: `1px solid ${demoMode ? '#6c63ff' : 'rgba(255,255,255,0.07)'}`, background: demoMode ? 'rgba(108,99,255,0.1)' : '#1a1928', padding: '8px 16px', fontSize: 13, color: demoMode ? '#6c63ff' : '#7b7a8e', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: 28, height: 16, borderRadius: 8, background: demoMode ? '#6c63ff' : 'rgba(123,122,142,0.3)', transition: 'background 0.2s' }}>
+              <div style={{ position: 'absolute', top: 2, left: demoMode ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: '#e8e6f0', transition: 'left 0.2s' }} />
+            </div>
+            Demo Mode
+          </motion.button>
+        </motion.div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'start' }}>
+          <div style={{ gridColumn: 'span 1' }}>
+            <CameraCard cameraActive={cameraActive} cameraPaused={cameraPaused} currentGesture={currentGesture}
+              confidence={confidence} onStartCamera={handleStartCamera} onPauseCamera={handlePauseCamera}
+              onResumeCamera={handleResumeCamera} onStopCamera={handleStopCamera} videoRef={videoRef} />
+          </div>
+          <div>
+            <ChatCard messages={messages} isLive={cameraActive || demoMode} isPaused={cameraPaused}
+              onSpeak={handleSpeak} onCopyAll={handleCopyAll} onClear={handleClear} />
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', zIndex: 999, borderRadius: 999, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(19,18,31,0.95)', padding: '10px 20px', fontSize: 13, color: '#e8e6f0', backdropFilter: 'blur(16px)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
+
+// ─── GESTURES SUPPORTED ───────────────────────────────────────────────────────
+function GesturesSupported() {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const gestures = [
+    { emoji: '✊', letter: 'A', description: 'Fist, thumb to side', color: '#6c63ff' },
+    { emoji: '🖐', letter: 'B', description: '4 fingers up, thumb tucked', color: '#ff6b6b' },
+    { emoji: '🤏', letter: 'C', description: 'Curved hand, C shape', color: '#ffc94a' },
+    { emoji: '👆', letter: 'L', description: 'Index up + thumb out', color: '#6c63ff' },
+    { emoji: '🤙', letter: 'Y', description: 'Thumb + pinky out', color: '#ff6b6b' },
+    { emoji: '🖖', letter: 'W', description: '3 fingers up', color: '#ffc94a' },
+  ];
+  const container = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
+  const cardV = { hidden: { opacity: 0, y: 30, scale: 0.95 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } } };
+
+  return (
+    <section id="gestures" style={{ position: 'relative', background: '#0a0a0f', padding: '128px 24px' }}>
+      <div style={{ maxWidth: 1152, margin: '0 auto' }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }} style={{ marginBottom: 64, textAlign: 'center' }}>
+          <p style={{ marginBottom: 16, fontSize: 11, fontWeight: 600, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#ff6b6b' }}>Supported Signs</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 400, color: '#e8e6f0', letterSpacing: '-0.02em' }}>6 Gestures, Detected Live</h2>
+        </motion.div>
+        <motion.div ref={ref} variants={container} initial="hidden" animate={isInView ? 'visible' : 'hidden'}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+          {gestures.map(g => (
+            <motion.div key={g.letter} variants={cardV}
+              whileHover={{ y: -6, boxShadow: `0 20px 40px -20px ${g.color}40`, transition: { duration: 0.25 } }}
+              whileTap={{ scale: 0.97 }}
+              style={{ position: 'relative', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', background: '#13121f', padding: 24, textAlign: 'center', cursor: 'default', overflow: 'hidden' }}>
+              <motion.span whileHover={{ scale: 1.15, rotate: 5 }} transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                style={{ display: 'inline-block', fontSize: 48, marginBottom: 16 }}>{g.emoji}</motion.span>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700, color: g.color, marginBottom: 8 }}>{g.letter}</h3>
+              <p style={{ fontSize: 13, color: '#7b7a8e', lineHeight: 1.5 }}>{g.description}</p>
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: g.color, opacity: 0.7 }} />
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ─── ABOUT ────────────────────────────────────────────────────────────────────
+function About() {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const techBadges = [
+    { name: 'MediaPipe', color: '#6c63ff' }, { name: 'PyTorch', color: '#ff6b6b' },
+    { name: 'FastAPI', color: '#ffc94a' }, { name: 'React', color: '#6c63ff' },
+    { name: 'TensorFlow', color: '#ff6b6b' }, { name: 'OpenCV', color: '#ffc94a' },
+  ];
+
+  return (
+    <section id="about" style={{ position: 'relative', overflow: 'hidden', padding: '128px 24px', background: '#0a0a0f' }} ref={ref}>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent, rgba(108,99,255,0.04), transparent)' }} />
+      <div style={{ position: 'relative', maxWidth: 1152, margin: '0 auto' }}>
+        <motion.p initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }}
+          style={{ marginBottom: 64, textAlign: 'center', fontSize: 11, fontWeight: 600, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#6c63ff' }}>
+          About The Project
+        </motion.p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 64, alignItems: 'center' }}>
+          <motion.div initial={{ opacity: 0, x: -60 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: -16, top: -32, fontFamily: 'var(--font-display)', fontSize: 96, color: 'rgba(108,99,255,0.15)', userSelect: 'none', lineHeight: 1 }}>"</span>
+            <blockquote style={{ position: 'relative', fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 400, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.01em', color: '#e8e6f0' }}>
+              We built SignBridge to close the communication gap between the Deaf community and the rest of the world.
+            </blockquote>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, x: 60 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}>
+            <p style={{ marginBottom: 24, fontSize: 16, lineHeight: 1.8, color: '#7b7a8e' }}>
+              SignBridge is a real-time ASL gesture recognition system that translates hand signs into text instantly. Using computer vision and deep learning, we've created an accessible tool that bridges communication barriers.
+            </p>
+            <p style={{ marginBottom: 32, fontSize: 16, lineHeight: 1.8, color: '#7b7a8e' }}>
+              Our stack combines MediaPipe for hand tracking, a custom CNN model trained in PyTorch for gesture classification, FastAPI for the backend, and React for the frontend.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
+              {techBadges.map((tech, i) => (
+                <motion.span key={tech.name}
+                  initial={{ opacity: 0, scale: 0.8 }} animate={isInView ? { opacity: 1, scale: 1 } : {}}
+                  transition={{ duration: 0.4, delay: 0.4 + i * 0.05 }}
+                  style={{ borderRadius: 999, border: `1px solid ${tech.color}30`, background: `${tech.color}10`, padding: '4px 12px', fontSize: 13, color: tech.color }}>
+                  {tech.name}
+                </motion.span>
+              ))}
+            </div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.6 }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 12, borderRadius: 12, border: '1px solid rgba(255,201,74,0.2)', background: 'rgba(255,201,74,0.05)', padding: '12px 20px' }}>
+              <span style={{ fontSize: 24 }}>🏆</span>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e6f0' }}>Built at Hackathon 2026</p>
+                <p style={{ fontSize: 12, color: '#7b7a8e' }}></p>
+              </div>
+            </motion.div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── TECH STACK MARQUEE ───────────────────────────────────────────────────────
+function TechStack() {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const technologies = [
+    { name: 'React', color: '#6c63ff' }, { name: 'Vite', color: '#e8e6f0' },
+    { name: 'FastAPI', color: '#ffc94a' }, { name: 'MediaPipe', color: '#ff6b6b' },
+    { name: 'PyTorch', color: '#6c63ff' }, { name: 'OpenCV', color: '#ffc94a' },
+    { name: 'Framer Motion', color: '#ff6b6b' }, { name: 'Tailwind CSS', color: '#6c63ff' },
+    { name: 'TensorFlow', color: '#ffc94a' }, { name: 'Python', color: '#ff6b6b' },
+    { name: 'TypeScript', color: '#6c63ff' }, { name: 'WebRTC', color: '#ffc94a' },
+  ];
+  const doubled = [...technologies, ...technologies, ...technologies];
+
+  return (
+    <section style={{ position: 'relative', overflow: 'hidden', padding: '96px 0', background: '#0d0d14' }} ref={ref}>
+      <div style={{ maxWidth: 1152, margin: '0 auto', padding: '0 24px' }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }} style={{ marginBottom: 48, textAlign: 'center' }}>
+          <p style={{ marginBottom: 16, fontSize: 11, fontWeight: 600, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#ff6b6b' }}>Under The Hood</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 4vw, 40px)', fontWeight: 400, color: '#e8e6f0' }}>Powered by Modern Tech</h2>
+        </motion.div>
+      </div>
+      <motion.div initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}} transition={{ duration: 0.8, delay: 0.2 }}
+        style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, zIndex: 10, height: '100%', width: 80, background: 'linear-gradient(to right, #0d0d14, transparent)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', right: 0, top: 0, zIndex: 10, height: '100%', width: 80, background: 'linear-gradient(to left, #0d0d14, transparent)', pointerEvents: 'none' }} />
+        <div style={{ display: 'flex', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: 16, padding: '8px 0', animation: 'marquee 40s linear infinite', flexShrink: 0 }}>
+            {doubled.map((tech, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 999, border: '1px solid rgba(255,255,255,0.07)', background: '#13121f', padding: '10px 20px', flexShrink: 0, transition: 'border-color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: tech.color, flexShrink: 0 }} />
+                <span style={{ whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: tech.color }}>{tech.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── FOOTER ───────────────────────────────────────────────────────────────────
+function Footer() {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-50px' });
+  const links = [
+    { label: 'GitHub', href: 'https://github.com' },
+    { label: 'Devpost', href: 'https://devpost.com' },
+    { label: 'Demo', href: '#demo-section' },
+  ];
+
+  return (
+    <motion.footer ref={ref} initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+      transition={{ duration: 0.8 }}
+      style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: '#0a0a0f' }}>
+      <div style={{ maxWidth: 1152, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 24, padding: '32px 24px' }}>
+        <motion.a href="#" initial={{ opacity: 0, x: -20 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+          transition={{ delay: 0.1 }}
+          style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: '#6c63ff', textDecoration: 'none' }}>
+          SignBridge
+        </motion.a>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+          {links.map(link => (
+            <a key={link.label} href={link.href}
+              target={link.href.startsWith('http') ? '_blank' : undefined}
+              rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+              style={{ fontSize: 13, color: '#7b7a8e', textDecoration: 'none', transition: 'color 0.2s' }}
+              onMouseEnter={e => e.target.style.color = '#e8e6f0'}
+              onMouseLeave={e => e.target.style.color = '#7b7a8e'}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+        <p style={{ fontSize: 13, color: '#7b7a8e', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#ff6b6b' }}>♥</span> Built for accessibility
+        </p>
+      </div>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <p style={{ textAlign: 'center', padding: '16px 24px', fontSize: 12, color: '#7b7a8e' }}>
+          © {new Date().getFullYear()} SignBridge. Open source and free to use.
+        </p>
+      </div>
+    </motion.footer>
+  );
+}
+
+// ─── SCROLL PROGRESS ──────────────────────────────────────────────────────────
+function ScrollProgress() {
+  const { scrollYProgress } = useScroll();
+  return (
+    <motion.div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #6c63ff, #ff6b6b, #ffc94a)', transformOrigin: '0%', scaleX: scrollYProgress, zIndex: 9999 }} />
+  );
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [autoStartCamera, setAutoStartCamera] = useState(false);
+  const handleStartSigning = useCallback(() => {
+    setAutoStartCamera(true);
+    document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  return (
+    <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden', background: '#0a0a0f' }}>
+      <ScrollProgress />
+      <Navbar />
+      <Hero onStartSigning={handleStartSigning} />
+      <HowItWorks />
+      <DemoSection autoStart={autoStartCamera} />
+      <GesturesSupported />
+      <About />
+      <TechStack />
+      <Footer />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
