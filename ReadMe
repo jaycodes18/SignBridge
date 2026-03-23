@@ -1,0 +1,48 @@
+# SignBridge ✋
+
+SignBridge is a real-time ASL (American Sign Language) gesture recognition web app. You open it in your browser, enable your webcam, hold up a hand sign, and it instantly translates it into text as a live chat transcript. It also reads the detected sign out loud using text-to-speech.
+
+It currently detects 6 ASL letters: A, B, C, L, W, and Y.
+
+## How it works
+
+Every second, the browser captures a frame from your webcam and sends it to a Python backend. The backend uses Google's MediaPipe to detect 21 landmarks on your hand, then figures out which fingers are up or down to classify the gesture. There's also a CNN model trained on the Sign Language MNIST dataset (27,455 images) that achieves 89.8% test accuracy.
+
+## How to run it
+
+**1. Install dependencies**
+```
+pip install fastapi uvicorn mediapipe opencv-python torch torchvision numpy pandas pillow python-multipart
+```
+
+**2. Download the dataset**
+
+Get Sign Language MNIST from Kaggle: https://www.kaggle.com/datasets/datamunge/sign-language-mnist
+
+Put both CSV files in a folder called `data/` inside the project.
+
+**3. Train the model (only need to do this once)**
+```
+python train.py
+```
+
+**4. Start the backend**
+```
+python run.py
+```
+
+**5. Open the app**
+
+In a second terminal run:
+```
+python -m http.server 8080
+```
+Then open Chrome and go to `http://localhost:8080` and click index.html.
+
+## Note
+
+The dataset CSVs, trained model file (sign_model.pth), and hand_landmarker.task are not included in this repo because they're too large. The hand landmarker downloads automatically when you run run.py. Everything else you generate by following the steps above.
+
+## Built with
+
+Python, FastAPI, MediaPipe, PyTorch, React, Framer Motion, JavaScript
